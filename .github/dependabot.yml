@@ -1,0 +1,33 @@
+# Dependabot opens a pull request when a dependency moves past the ranges in
+# requirements-dev.txt, and CI runs on that pull request — so the answer to "does the suite
+# still pass on the new version?" arrives with the news rather than after it.
+#
+# Both ecosystems are watched on purpose. The Python one is the obvious half; the actions
+# half is the quiet one — checkout and setup-python can silently stay on a Node the runners
+# stopped shipping, and the only warning is an annotation nobody reads on a green build.
+#
+# Monthly and grouped: one pull request to look at, not five. Security updates ignore this
+# schedule and arrive as soon as an advisory lands, which is the point of them.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"

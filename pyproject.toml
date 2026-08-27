@@ -1,0 +1,31 @@
+# Metadata and tool configuration. The modules are drop-in single files, not an installable
+# package: copy tg_calendar.py (and tg_timepick.py if you need it) into your bot. They need
+# nothing outside the standard library; the development tools are declared in
+# requirements-dev.txt (with the versions the suite is actually run against) and nowhere
+# else, so the two cannot drift apart.
+[project]
+name = "tg-calendar"
+version = "1.0.0"
+description = "Inline-keyboard date and time pickers for Telegram bots: stdlib-only drop-in files with even, full-width grids"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Vitali Butkevich" }]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# F/E9 correctness, B bugbear, PERF performance, S security (bandit),
+# DTZ naive datetimes — the module deliberately takes "today" from an injectable today_fn,
+# so nothing in it may call the clock directly without the rule noticing.
+select = ["F", "E9", "B", "PERF", "S", "DTZ"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use asserts.
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

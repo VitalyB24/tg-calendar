@@ -1,0 +1,39 @@
+# Lint + tests on every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      # Majors, not pinned commits: these two are first-party actions and patches to them are
+      # wanted. Older majors run on Node 20, which the runners no longer provide.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Language (English-only rule)
+        run: python check_language.py
+      - name: Versions (installed matches the declared ranges)
+        run: python check_versions.py
+      - name: Sync (consumer copies match the repository)
+        # Skips cleanly here — sync_targets.txt is machine-specific and untracked. The step
+        # still guards the contract: if that file ever leaks into the repository, its paths
+        # will not exist on the runner and the build fails loudly.
+        run: python sync.py
+      - name: Tests
+        run: pytest

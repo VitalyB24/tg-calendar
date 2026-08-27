@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# Paths of one particular machine never go into the repository (see sync.py).
+sync_targets.txt
