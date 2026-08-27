@@ -36,10 +36,7 @@ ALLOWED_FILES = {'README.ru.md'}
 # Strings that are data rather than prose. The reason is the point of each entry: without
 # one, a string does not belong here.
 ALLOWED = {
-    'README.md': [('Русская версия', 'link to the Russian README'),
-                  ('Вчера', 'quoted quick-date footer label'),
-                  ('Сегодня', 'quoted quick-date footer label'),
-                  ('Завтра', 'quoted quick-date footer label')],
+    'README.md': [('Русская версия', 'link to the Russian README')],
 }
 
 HUMAN_CALLS = {'print', 'SystemExit', 'RuntimeError', 'AssertionError', 'getpass'}

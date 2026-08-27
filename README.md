@@ -31,8 +31,8 @@ the workarounds:
 ## Features
 
 - Month grid with prev/next navigation; weeks start on Monday.
-- Optional quick-date footer — Вчера · 📅 Сегодня · Завтра (yesterday / today / tomorrow) —
-  and an optional cancel row.
+- Optional quick-date footer — yesterday / 📅 today / tomorrow buttons (the labels ship in
+  Russian, see Localisation) — and an optional cancel row.
 - Today highlight: 14 markers × 4 digit styles; `MARKERS` and `DIGIT_STYLES` are (value,
   label) catalogues a host bot can expose as per-user settings.
 - `months_keyboard()` — a year-at-a-glance month picker, 4 rows × 3 months like a paper
