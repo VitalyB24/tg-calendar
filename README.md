@@ -6,7 +6,8 @@ Inline-keyboard date and time pickers for Telegram bots: two self-contained file
 library only. Drop `tg_calendar.py` (month calendar) and, if you need it, `tg_timepick.py`
 (hour/minute picker) into a bot, give each a callback prefix, and they render keyboards
 whose columns stay even and whose width never jumps while you navigate — which, on Telegram
-inline keyboards, is the hard part.
+inline keyboards, is the hard part. Keyboards speak English by default; a Russian label set
+is bundled, and any other language can be supplied as a dict (the `locale=` parameter).
 
 Battle-tested in production bots; the grid discipline below came out of dozens of
 iterations on a real phone screen.
@@ -31,10 +32,12 @@ the workarounds:
 ## Features
 
 - Month grid with prev/next navigation; weeks start on Monday.
-- Optional quick-date footer — yesterday / 📅 today / tomorrow buttons (the labels ship in
-  Russian, see Localisation) — and an optional cancel row.
-- Today highlight: 14 markers × 4 digit styles; `MARKERS` and `DIGIT_STYLES` are (value,
-  label) catalogues a host bot can expose as per-user settings.
+- Optional quick-date footer — Yesterday / 📅 Today / Tomorrow — and an optional cancel row.
+- Localised labels: English by default, Russian bundled (`locale="ru"`), any other language
+  as a custom dict — validated at construction time. See Localisation.
+- Today highlight: 14 markers × 4 digit styles; each locale carries `markers` and
+  `digit_styles` (value, label) catalogues a host bot can expose as per-user settings — the
+  values are locale-independent, so a stored preference survives a locale switch.
 - `months_keyboard()` — a year-at-a-glance month picker, 4 rows × 3 months like a paper
   calendar, padded with the same discipline so the grid stretches to the screen edge.
 - `pad_center()` — the exported padding helper, reusable for any full-width title button.
@@ -77,11 +80,12 @@ if res:
 ## API
 
 - `Calendar(prefix="cal", *, title_width=46, footer_today=True, footer_cancel=True,
-  today_fn=datetime.date.today)` — give every use its own `prefix` so its callbacks
-  (`<prefix>:nav|pick|yest|today|tom|cancel|noop`) never clash with other buttons.
+  today_fn=datetime.date.today, locale="en")` — give every use its own `prefix` so its
+  callbacks (`<prefix>:nav|pick|yest|today|tom|cancel|noop`) never clash with other
+  buttons.
 - `Calendar.keyboard(year, month, *, marker="none", digits="bold")` → a
-  `{"inline_keyboard": ...}` dict for `reply_markup`. `marker` is one of the `MARKERS`
-  values; `digits` is `plain | bold | wide | keycap`.
+  `{"inline_keyboard": ...}` dict for `reply_markup`. `marker` is one of the locale's
+  `markers` values; `digits` is `plain | bold | wide | keycap`.
 - `Calendar.parse(data)` → `(kind, value)` for the calendar's own callbacks, else `None`:
 
   | callback | result |
@@ -92,10 +96,12 @@ if res:
   | anything else with our prefix, malformed included | `("noop", None)` |
   | a foreign callback | `None` |
 
-- `months_keyboard(cb_for_month)` → the 4×3 month picker; `cb_for_month(m)` supplies the
-  callback data for month 1..12, extra rows (back / cancel) are appended by the host.
-- `pad_center(s, width=TITLE_WIDTH)`, `style_digits(day, style)`, and the label constants
-  `MONTHS_RU`, `MONTHS_SHORT`, `WD_SHORT`.
+- `months_keyboard(cb_for_month, locale="en")` → the 4×3 month picker; `cb_for_month(m)`
+  supplies the callback data for month 1..12, extra rows (back / cancel) are appended by
+  the host.
+- `pad_center(s, width=TITLE_WIDTH)`, `style_digits(day, style)`,
+  `month_title(month, year, width=TITLE_WIDTH, locale="en")`, and the `LOCALES` dict with
+  every label set.
 
 ## The time picker: tg_timepick.py
 
@@ -104,7 +110,7 @@ The sibling module — independent, copy it only if you need it:
 ```python
 import tg_timepick
 
-TP = tg_timepick.TimePick(prefix="tp", minute_step=5)
+TP = tg_timepick.TimePick(prefix="tp", minute_step=5)   # locale="ru" for Russian
 
 # when a wizard needs a time:
 send(chat, "⏰ Pick a time:", reply_markup=TP.keyboard_hours())
@@ -130,12 +136,21 @@ adds taps.
 
 ## Localisation
 
-The labels ship in Russian on purpose — the modules were extracted from production
-Russian-speaking bots, and the Russian strings are their data. Localising is editing plain
-string constants: month and weekday names and the style catalogues sit at the top of
-`tg_calendar.py`, the footer labels live in its `keyboard()`, and the time-picker titles
-live in `keyboard_hours()` / `keyboard_minutes()`. The width discipline does not depend on
-the language; just keep the title row the longest row of the keyboard.
+Every label lives in the `LOCALES` dict of each module. The default locale is English;
+`locale="ru"` selects the bundled Russian set (the modules were extracted from production
+Russian-speaking bots, so the Russian strings are first-class data, not an afterthought):
+
+```python
+CAL = tg_calendar.Calendar(prefix="cal", locale="ru")
+TP = tg_timepick.TimePick(prefix="tp", locale="ru")
+```
+
+Any other language is a dict of the same shape passed as `locale=` — it is validated at
+construction time, so a typo or a missing label fails immediately rather than later inside
+a callback handler. Marker and digit-style *values* are identical across locales — only
+their labels translate — so a user preference stored by value survives a locale switch.
+The width discipline does not depend on the language; just keep the title row the longest
+row of the keyboard.
 
 ## Requirements
 
@@ -162,7 +177,8 @@ pytest
   CI answers on the pull request.
 - **Line endings are LF in git** (`.gitattributes`), whatever the OS prefers locally.
 - **Consumers sync from the repository.** The repository is the single source of truth for
-  the modules. Bots that use them are listed, one directory per line, in
+  the modules and their tests (both are synced, so a consumer's suite always tests the
+  copy it actually runs). Bots that use them are listed, one directory per line, in
   `sync_targets.txt` (machine-specific, deliberately untracked); `python sync.py` reports
   any copy that drifted from the repository, `python sync.py --apply` overwrites the
   copies with the repository version. Never edit a module inside a consumer: make the

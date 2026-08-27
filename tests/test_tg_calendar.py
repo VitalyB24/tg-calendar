@@ -13,10 +13,10 @@ def _cal(**kw):
 
 def test_keyboard_structure():
     kb = _cal().keyboard(2026, 6)["inline_keyboard"]
-    assert "Июнь 2026" in kb[0][0]["text"]                       # full-width title
+    assert "June 2026" in kb[0][0]["text"]                       # full-width title
     assert kb[1][0]["callback_data"] == "cal:nav:2026:5"         # < May
     assert kb[1][1]["callback_data"] == "cal:nav:2026:7"         # > July
-    assert [b["text"] for b in kb[2]] == list(tg_calendar.WD_SHORT)
+    assert [b["text"] for b in kb[2]] == list(tg_calendar.LOCALES["en"]["weekdays"])
     assert [b["callback_data"] for b in kb[-2]] == ["cal:yest", "cal:today", "cal:tom"]
     assert kb[-1][0]["callback_data"] == "cal:cancel"
 
@@ -128,8 +128,8 @@ def test_months_keyboard_grid():
     assert len(kb) == 4 and all(len(row) == 3 for row in kb)   # a quarter per row
     labels = [b["text"] for row in kb for b in row]
     assert [t.strip(" ") for t in labels] == [
-        "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
-        "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     # cells are figure-space padded to MONTH_CELL — the grid stretches to the
     # full screen width (3×15 ≈ TITLE_WIDTH) and the cells stay even
     assert all(len(t) == tg_calendar.MONTH_CELL for t in labels)
@@ -149,4 +149,4 @@ def test_pad_center_stretches_with_figure_spaces():
     long = "x" * (tg_calendar.TITLE_WIDTH + 5)
     assert tg_calendar.pad_center(long) == long
     # month_title keeps the same padding
-    assert tg_calendar.month_title(6, 2026).strip(" ") == "Июнь 2026"
+    assert tg_calendar.month_title(6, 2026).strip(" ") == "June 2026"

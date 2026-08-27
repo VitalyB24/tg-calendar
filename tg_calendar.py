@@ -25,16 +25,22 @@ Self-contained (stdlib only). Drop this file into a bot and wire it:
         if kind == "cancel":
             answer_cb(cb_id, "Cancelled"); cancel_wizard(); return
 
+Labels are localised. The default is English; pass locale="ru" for the bundled
+Russian set, or pass a dict shaped like a LOCALES entry for a custom language —
+it is validated at construction time:
+
+    CAL = tg_calendar.Calendar(prefix="cal", locale="ru")
+
 Styling (optional) is passed per call so a bot can keep user prefs in its own DB:
     CAL.keyboard(y, m, marker="🔹", digits="bold")
-  marker: one of tg_calendar.MARKERS values ('none' = no marker)
+  marker: one of the locale's "markers" values ('none' = no marker)
   digits: one of 'plain' | 'bold' | 'wide' | 'keycap'
 
 Callback-data format: "<prefix>:nav:Y:M", ":pick:Y:M:D", ":yest", ":today",
 ":tom", ":cancel", ":noop". Pick a prefix that doesn't clash with other buttons.
 
 Also here: months_keyboard(cb_for_month) — a year-at-a-glance month picker
-(4×3 quarters grid, MONTHS_SHORT labels); the host routes its own callbacks.
+(4×3 quarters grid, "months_short" labels); the host routes its own callbacks.
 """
 from __future__ import annotations
 
@@ -42,11 +48,66 @@ import calendar as _cal
 import datetime as _dt
 from typing import Callable
 
-MONTHS_RU = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-             "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"]
-MONTHS_SHORT = ("", "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
-                "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек")
-WD_SHORT = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+# Every label a keyboard renders, per language. "markers" and "digit_styles" are
+# (value, label) catalogues a host bot can show as user settings; the VALUES are
+# identical across locales — only the labels translate — so a stored preference
+# survives a locale switch. A custom locale is any dict with these exact keys.
+LOCALES = {
+    "en": {
+        "months": ["", "January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"],
+        "months_short": ("", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+        "weekdays": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+        "yesterday": "Yesterday", "today": "📅 Today", "tomorrow": "Tomorrow",
+        "cancel": "❌ Cancel",
+        "markers": [
+            ("none", "no marker"), ("🔹", "blue diamond, small"), ("🔷", "blue diamond, large"),
+            ("🔸", "orange diamond, small"), ("🔶", "orange diamond, large"), ("🔵", "blue circle"),
+            ("🟢", "green circle"), ("🟡", "yellow circle"), ("🔴", "red circle"),
+            ("🟦", "blue square"), ("🟩", "green square"), ("🟥", "red square"),
+            ("◽", "grey square, small"), ("▪️", "black square, small"),
+        ],
+        "digit_styles": [("plain", "plain"), ("bold", "bold"),
+                         ("wide", "wider"), ("keycap", "keycap 1️⃣5️⃣")],
+    },
+    "ru": {
+        "months": ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                   "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"],
+        "months_short": ("", "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+                         "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"),
+        "weekdays": ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"),
+        "yesterday": "Вчера", "today": "📅 Сегодня", "tomorrow": "Завтра",
+        "cancel": "❌ Отмена",
+        "markers": [
+            ("none", "без метки"), ("🔹", "ромб синий мал."), ("🔷", "ромб синий бол."),
+            ("🔸", "ромб оранж. мал."), ("🔶", "ромб оранж. бол."), ("🔵", "круг синий"),
+            ("🟢", "круг зелёный"), ("🟡", "круг жёлтый"), ("🔴", "круг красный"),
+            ("🟦", "квадрат синий"), ("🟩", "квадрат зелёный"), ("🟥", "квадрат красный"),
+            ("◽", "квадрат серый мал."), ("▪️", "квадрат чёрный мал."),
+        ],
+        "digit_styles": [("plain", "обычный"), ("bold", "жирный"),
+                         ("wide", "крупнее"), ("keycap", "максимум 1️⃣5️⃣")],
+    },
+}
+
+_LOCALE_KEYS = frozenset(LOCALES["en"])
+
+
+def _resolve_locale(locale):
+    """A locale name from LOCALES, or a full label dict of the same shape.
+    A typo or a missing label fails HERE, at construction time — not later,
+    somewhere inside a callback handler."""
+    if isinstance(locale, str):
+        if locale not in LOCALES:
+            raise ValueError("unknown locale %r; bundled: %s"
+                             % (locale, ", ".join(sorted(LOCALES))))
+        return LOCALES[locale]
+    missing = _LOCALE_KEYS - set(locale)
+    if missing:
+        raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+    return locale
+
 
 # Telegram button text can't be styled (no colour/size/bold/background), so the
 # "today" cell is faked inside the glyph: an optional colour marker + a digit
@@ -55,17 +116,6 @@ _BOLD_DIGITS = {str(i): ch for i, ch in enumerate("𝟬𝟭𝟮𝟯𝟰𝟱𝟲�
 _WIDE_DIGITS = {str(i): ch for i, ch in enumerate("０１２３４５６７８９")}
 _FIGSP = chr(0x2007)  # figure space U+2007 (non-breaking, digit width)
 _BLANK = _FIGSP * 2    # empty cell, same width as a 2-digit cell
-
-# Pickers a host bot can render to let the user choose look (value, label).
-MARKERS = [
-    ("none", "без метки"), ("🔹", "ромб синий мал."), ("🔷", "ромб синий бол."),
-    ("🔸", "ромб оранж. мал."), ("🔶", "ромб оранж. бол."), ("🔵", "круг синий"),
-    ("🟢", "круг зелёный"), ("🟡", "круг жёлтый"), ("🔴", "круг красный"),
-    ("🟦", "квадрат синий"), ("🟩", "квадрат зелёный"), ("🟥", "квадрат красный"),
-    ("◽", "квадрат серый мал."), ("▪️", "квадрат чёрный мал."),
-]
-DIGIT_STYLES = [("plain", "обычный"), ("bold", "жирный"),
-                ("wide", "крупнее"), ("keycap", "максимум 1️⃣5️⃣")]
 
 # Pad the full-width title row with figure spaces so it reaches the screen edge
 # and is the SAME width for every month. Tuned by eye on a phone.
@@ -103,24 +153,25 @@ def pad_center(s: str, width: int = TITLE_WIDTH) -> str:
     return _FIGSP * left + s + _FIGSP * (pad - left)
 
 
-def month_title(month: int, year: int, width: int = TITLE_WIDTH) -> str:
-    return pad_center(f"{MONTHS_RU[month]} {year}", width)
+def month_title(month: int, year: int, width: int = TITLE_WIDTH, locale="en") -> str:
+    return pad_center(f"{_resolve_locale(locale)['months'][month]} {year}", width)
 
 
 MONTH_CELL = 15  # month-cell width in figure-space slots; 3 cells ≈ TITLE_WIDTH
 
 
-def months_keyboard(cb_for_month: Callable[[int], str]) -> dict:
+def months_keyboard(cb_for_month: Callable[[int], str], locale="en") -> dict:
     """Year-at-a-glance month picker styled like the calendar grid: 4 rows ×
-    3 months (a quarter per row, as on a paper calendar), MONTHS_SHORT labels.
+    3 months (a quarter per row, as on a paper calendar), "months_short" labels.
     Every cell is centre-padded with figure spaces to MONTH_CELL slots, so the
     3-wide row totals ≈ TITLE_WIDTH and the grid stretches to the screen edge
     exactly like the day calendar (without the padding the keyboard shrinks to
     fit its content — caught on a real phone). cb_for_month(m) returns the
     callback_data for month m (1..12); the host bot appends its own extra rows
     (cancel/back) if it needs them."""
+    short = _resolve_locale(locale)["months_short"]
     return {"inline_keyboard": [
-        [{"text": pad_center(MONTHS_SHORT[m], MONTH_CELL),
+        [{"text": pad_center(short[m], MONTH_CELL),
           "callback_data": cb_for_month(m)}
          for m in range(q * 3 + 1, q * 3 + 4)]
         for q in range(4)]}
@@ -132,28 +183,31 @@ class Calendar:
 
     def __init__(self, prefix: str = "cal", *, title_width: int = TITLE_WIDTH,
                  footer_today: bool = True, footer_cancel: bool = True,
-                 today_fn: Callable[[], _dt.date] = _dt.date.today):
+                 today_fn: Callable[[], _dt.date] = _dt.date.today,
+                 locale="en"):
         self.p = prefix
         self.title_width = title_width
         self.footer_today = footer_today
         self.footer_cancel = footer_cancel
         self._today_fn = today_fn
+        self.labels = _resolve_locale(locale)
 
     # -------------------- build --------------------
 
     def keyboard(self, year: int, month: int, *,
                  marker: str = "none", digits: str = "bold") -> dict:
-        p = self.p
+        p, lab = self.p, self.labels
+        months = lab["months"]
         prev_y, prev_m = (year - 1, 12) if month == 1 else (year, month - 1)
         next_y, next_m = (year + 1, 1) if month == 12 else (year, month + 1)
         rows = [
-            [{"text": month_title(month, year, self.title_width),
+            [{"text": pad_center(f"{months[month]} {year}", self.title_width),
               "callback_data": f"{p}:noop"}],
-            [{"text": f"‹ {MONTHS_RU[prev_m]}",
+            [{"text": f"‹ {months[prev_m]}",
               "callback_data": f"{p}:nav:{prev_y}:{prev_m}"},
-             {"text": f"{MONTHS_RU[next_m]} ›",
+             {"text": f"{months[next_m]} ›",
               "callback_data": f"{p}:nav:{next_y}:{next_m}"}],
-            [{"text": w, "callback_data": f"{p}:noop"} for w in WD_SHORT],
+            [{"text": w, "callback_data": f"{p}:noop"} for w in lab["weekdays"]],
         ]
         today = self._today_fn()
         for week in _cal.monthcalendar(year, month):   # weeks start Monday
@@ -169,11 +223,11 @@ class Calendar:
                                 "callback_data": f"{p}:pick:{year}:{month}:{d}"})
             rows.append(row)
         if self.footer_today:
-            rows.append([{"text": "Вчера", "callback_data": f"{p}:yest"},
-                         {"text": "📅 Сегодня", "callback_data": f"{p}:today"},
-                         {"text": "Завтра", "callback_data": f"{p}:tom"}])
+            rows.append([{"text": lab["yesterday"], "callback_data": f"{p}:yest"},
+                         {"text": lab["today"], "callback_data": f"{p}:today"},
+                         {"text": lab["tomorrow"], "callback_data": f"{p}:tom"}])
         if self.footer_cancel:
-            rows.append([{"text": "❌ Отмена", "callback_data": f"{p}:cancel"}])
+            rows.append([{"text": lab["cancel"], "callback_data": f"{p}:cancel"}])
         return {"inline_keyboard": rows}
 
     # -------------------- parse --------------------

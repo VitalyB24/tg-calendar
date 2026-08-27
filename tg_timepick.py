@@ -22,6 +22,10 @@ Flow: hour grid (00–23, four rows of six) → minute grid (step 5, two rows of
 six) → "HH:MM". Typed input stays the host's parallel path — the picker only
 adds taps.
 
+Labels are localised. The default is English; pass locale="ru" for the bundled
+Russian set, or pass a dict shaped like a LOCALES entry for a custom language —
+it is validated at construction time.
+
 Grid discipline mirrors tg_calendar: every cell in a row is the same 2-digit
 width (buttons split row width by text length — uneven labels make columns
 jump), and the header is a full-width figure-space-padded row so the keyboard
@@ -38,6 +42,44 @@ from typing import Optional
 _FIGSP = chr(0x2007)   # figure space: survives Telegram's whitespace trimming
 TITLE_WIDTH = 46       # same screen-edge width as tg_calendar's month title
 
+# Every label the picker renders, per language. "minutes_title" is a format
+# string receiving the chosen hour. A custom locale is any dict with these keys.
+LOCALES = {
+    "en": {
+        "hours_title": "Pick an hour",
+        "minutes_title": "{hour:02d}:·· — pick the minutes",
+        "back_hours": "« Hours",
+        "cancel": "❌ Cancel",
+    },
+    "ru": {
+        "hours_title": "Выбери час",
+        "minutes_title": "{hour:02d}:·· — выбери минуты",
+        "back_hours": "« Часы",
+        "cancel": "❌ Отмена",
+    },
+}
+
+_LOCALE_KEYS = frozenset(LOCALES["en"])
+
+
+def _resolve_locale(locale):
+    """A locale name from LOCALES, or a full label dict of the same shape.
+    A typo, a missing label or a broken minutes_title template fails HERE, at
+    construction time — not later, inside a callback handler."""
+    if isinstance(locale, str):
+        if locale not in LOCALES:
+            raise ValueError("unknown locale %r; bundled: %s"
+                             % (locale, ", ".join(sorted(LOCALES))))
+        return LOCALES[locale]
+    missing = _LOCALE_KEYS - set(locale)
+    if missing:
+        raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+    try:
+        locale["minutes_title"].format(hour=0)
+    except (KeyError, IndexError, ValueError) as e:
+        raise ValueError("minutes_title must be a format string taking {hour}: %s" % e) from None
+    return locale
+
 
 def _pad_center(s: str, width: int = TITLE_WIDTH) -> str:
     pad = width - len(s)
@@ -52,27 +94,29 @@ class TimePick:
     one instance can serve any number of chats."""
 
     def __init__(self, prefix: str = "tp", *, minute_step: int = 5,
-                 title_width: int = TITLE_WIDTH):
+                 title_width: int = TITLE_WIDTH, locale="en"):
         self.p = prefix
         self.step = max(1, int(minute_step))
         self.title_width = title_width
+        self.labels = _resolve_locale(locale)
 
     # -------------------- build --------------------
 
-    def keyboard_hours(self, title: str = "Выбери час") -> dict:
+    def keyboard_hours(self, title: Optional[str] = None) -> dict:
         p = self.p
-        rows = [[{"text": _pad_center(title, self.title_width),
+        rows = [[{"text": _pad_center(title or self.labels["hours_title"],
+                                      self.title_width),
                   "callback_data": f"{p}:noop"}]]
         # 00–23: calendar-style 4×6 grid
         rows.extend([{"text": f"{h:02d}", "callback_data": f"{p}:h:{h}"}
                      for h in range(r * 6, r * 6 + 6)]
                     for r in range(4))
-        rows.append([{"text": "❌ Отмена", "callback_data": f"{p}:cancel"}])
+        rows.append([{"text": self.labels["cancel"], "callback_data": f"{p}:cancel"}])
         return {"inline_keyboard": rows}
 
     def keyboard_minutes(self, hour: int) -> dict:
         p = self.p
-        rows = [[{"text": _pad_center(f"{hour:02d}:·· — выбери минуты",
+        rows = [[{"text": _pad_center(self.labels["minutes_title"].format(hour=hour),
                                       self.title_width),
                   "callback_data": f"{p}:noop"}]]
         mins = list(range(0, 60, self.step))
@@ -80,8 +124,8 @@ class TimePick:
                       "callback_data": f"{p}:m:{hour}:{m}"}
                      for m in mins[i:i + 6]]
                     for i in range(0, len(mins), 6))
-        rows.append([{"text": "« Часы", "callback_data": f"{p}:hours"},
-                     {"text": "❌ Отмена", "callback_data": f"{p}:cancel"}])
+        rows.append([{"text": self.labels["back_hours"], "callback_data": f"{p}:hours"},
+                     {"text": self.labels["cancel"], "callback_data": f"{p}:cancel"}])
         return {"inline_keyboard": rows}
 
     # -------------------- parse --------------------

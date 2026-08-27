@@ -1,4 +1,4 @@
-"""Distributes the modules to the consumer directories listed in sync_targets.txt.
+"""Distributes the modules and their tests to the consumers listed in sync_targets.txt.
 
 The repository is the single source of truth. Edit the modules HERE, run the gates, then
 push the result out with --apply. A consumer copy that differs from the repository is a
@@ -20,6 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 MODULES = ('tg_calendar.py', 'tg_timepick.py')
+# Module tests travel with the modules, so a consumer's suite always tests the
+# copy it actually runs. Repository-only tests (the sync tool's own) stay here.
+FILES = MODULES + ('tests/test_tg_calendar.py', 'tests/test_tg_timepick.py',
+                   'tests/test_locales.py')
 TARGETS_FILE = ROOT / 'sync_targets.txt'
 
 
@@ -51,11 +55,12 @@ def main(argv=None):
         if not d.is_dir():
             findings.append('%s: target directory does not exist' % d)
             continue
-        for name in MODULES:
+        for name in FILES:
             src, dst = ROOT / name, d / name
             if dst.exists() and _normalised(dst) == _normalised(src):
                 continue
             if apply:
+                dst.parent.mkdir(parents=True, exist_ok=True)
                 dst.write_bytes(src.read_bytes())
                 synced += 1
                 print('synced %s' % dst)
