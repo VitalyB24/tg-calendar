@@ -5,7 +5,7 @@
 # else, so the two cannot drift apart.
 [project]
 name = "tg-calendar"
-version = "2.0.0"
+version = "2.0.1"
 description = "Inline-keyboard date and time pickers for Telegram bots: stdlib-only drop-in files with even, full-width grids; English/Russian locales"
 readme = "README.md"
 requires-python = ">=3.10"
