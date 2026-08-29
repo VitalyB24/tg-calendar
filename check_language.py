@@ -39,7 +39,8 @@ ALLOWED = {
     'README.md': [('Русская версия', 'link to the Russian README')],
 }
 
-HUMAN_CALLS = {'print', 'SystemExit', 'RuntimeError', 'AssertionError', 'getpass'}
+HUMAN_CALLS = {'print', 'SystemExit', 'RuntimeError', 'AssertionError', 'getpass',
+               'ValueError', 'TypeError', 'KeyError'}
 
 # Files whose string LITERALS are data rather than prose: the modules (their literals are
 # the Russian UI labels), the fixtures under tests/, and this file, whose allowlist has to
@@ -148,13 +149,15 @@ def main():
             continue
         try:
             src = path.read_text(encoding='utf-8')
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError) as e:
+            print(f'{rel}: cannot read as UTF-8 ({e})')
+            bad += 1
             continue
         if not NON_LATIN.search(src):
             continue
         try:
             found = python_findings(rel, src) if ext == '.py' else text_findings(rel, src, ext)
-        except SyntaxError as e:
+        except (SyntaxError, tokenize.TokenError) as e:
             print(f'{rel}: cannot parse ({e})')
             bad += 1
             continue

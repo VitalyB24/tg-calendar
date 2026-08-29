@@ -96,8 +96,8 @@ _LOCALE_KEYS = frozenset(LOCALES["en"])
 
 def _resolve_locale(locale):
     """A locale name from LOCALES, or a full label dict of the same shape.
-    A typo or a missing label fails HERE, at construction time — not later,
-    somewhere inside a callback handler."""
+    A typo, a missing label or a mis-shaped value fails HERE, at construction
+    time — not later, somewhere inside a callback handler."""
     if isinstance(locale, str):
         if locale not in LOCALES:
             raise ValueError("unknown locale %r; bundled: %s"
@@ -106,6 +106,17 @@ def _resolve_locale(locale):
     missing = _LOCALE_KEYS - set(locale)
     if missing:
         raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+    for key in ("months", "months_short"):
+        seq = locale[key]
+        if isinstance(seq, str) or len(seq) != 13 or seq[0] != "" \
+                or not all(isinstance(x, str) for x in seq):
+            raise ValueError("locale[%r] must be 13 strings with a '' sentinel at index 0" % key)
+    wd = locale["weekdays"]
+    if isinstance(wd, str) or len(wd) != 7 or not all(isinstance(x, str) for x in wd):
+        raise ValueError("locale['weekdays'] must be 7 strings, Mon..Sun")
+    for key in ("yesterday", "today", "tomorrow", "cancel"):
+        if not isinstance(locale[key], str):
+            raise ValueError("locale[%r] must be a string" % key)
     return locale
 
 
@@ -120,6 +131,15 @@ _BLANK = _FIGSP * 2    # empty cell, same width as a 2-digit cell
 # Pad the full-width title row with figure spaces so it reaches the screen edge
 # and is the SAME width for every month. Tuned by eye on a phone.
 TITLE_WIDTH = 46
+
+# The grid comes from a private Calendar instance pinned to Monday: a host (or
+# any of its libraries) calling the global calendar.setfirstweekday() must not
+# shift our dates under the fixed Mon..Sun header.
+_GRID = _cal.Calendar(firstweekday=0)
+
+# Telegram caps callback_data at 64 bytes. The longest suffix this module ever
+# appends is ":pick:9999:12:31" (16 bytes), so a prefix may spend the rest.
+_PREFIX_BUDGET = 64 - len(":pick:9999:12:31")
 
 
 def style_digits(day: int, style: str) -> str:
@@ -185,6 +205,11 @@ class Calendar:
                  footer_today: bool = True, footer_cancel: bool = True,
                  today_fn: Callable[[], _dt.date] = _dt.date.today,
                  locale="en"):
+        if not prefix or ":" in prefix:
+            raise ValueError("prefix must be non-empty and contain no ':', got %r" % (prefix,))
+        if len(prefix.encode("utf-8")) > _PREFIX_BUDGET:
+            raise ValueError("prefix must fit %d UTF-8 bytes (Telegram caps callback_data "
+                             "at 64), got %d" % (_PREFIX_BUDGET, len(prefix.encode("utf-8"))))
         self.p = prefix
         self.title_width = title_width
         self.footer_today = footer_today
@@ -210,7 +235,7 @@ class Calendar:
             [{"text": w, "callback_data": f"{p}:noop"} for w in lab["weekdays"]],
         ]
         today = self._today_fn()
-        for week in _cal.monthcalendar(year, month):   # weeks start Monday
+        for week in _GRID.monthdayscalendar(year, month):   # weeks start Monday
             row = []
             for d in week:
                 if d == 0:
@@ -242,6 +267,7 @@ class Calendar:
         # nav/pick carry numeric args from an untrusted callback — a crafted or
         # truncated payload must degrade to noop (caller acks, does nothing),
         # never raise (a swallowed exception leaves the button spinner hung).
+        # yest/tom sit under the same net: one day past date.min/max overflows.
         try:
             if action == "nav":
                 y, m = int(parts[2]), int(parts[3])
@@ -253,14 +279,14 @@ class Calendar:
                 return ("nav", (y, m))
             if action == "pick":
                 return ("pick", _dt.date(int(parts[2]), int(parts[3]), int(parts[4])))
-        except (IndexError, ValueError):
+            if action == "today":
+                return ("today", self._today_fn())
+            if action == "yest":
+                return ("yesterday", self._today_fn() - _dt.timedelta(days=1))
+            if action == "tom":
+                return ("tomorrow", self._today_fn() + _dt.timedelta(days=1))
+        except (IndexError, ValueError, OverflowError):
             return ("noop", None)
-        if action == "today":
-            return ("today", self._today_fn())
-        if action == "yest":
-            return ("yesterday", self._today_fn() - _dt.timedelta(days=1))
-        if action == "tom":
-            return ("tomorrow", self._today_fn() + _dt.timedelta(days=1))
         if action == "cancel":
             return ("cancel", None)
         return ("noop", None)

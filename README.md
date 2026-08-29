@@ -158,12 +158,13 @@ Python 3.10+. No dependencies.
 
 ## Development
 
-Run the gates before every commit — CI runs the same four on every push:
+Run the gates before every commit — CI runs the same five on every push:
 
 ```bash
 ruff check .
 python check_language.py
 python check_versions.py
+python sync.py
 pytest
 ```
 
@@ -178,7 +179,9 @@ pytest
 - **Line endings are LF in git** (`.gitattributes`), whatever the OS prefers locally.
 - **Consumers sync from the repository.** The repository is the single source of truth for
   the modules and their tests (both are synced, so a consumer's suite always tests the
-  copy it actually runs). Bots that use them are listed, one directory per line, in
+  copy it actually runs). The synced tests carry no `sys.path` bootstrap of their own: the
+  consumer needs a `conftest.py` that puts the module directory on `sys.path`, kept in
+  its own `tests/`. Consumers are listed, one directory per line, in
   `sync_targets.txt` (machine-specific, deliberately untracked); `python sync.py` reports
   any copy that drifted from the repository, `python sync.py --apply` overwrites the
   copies with the repository version. Never edit a module inside a consumer: make the

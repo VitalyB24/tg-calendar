@@ -11,9 +11,11 @@ repository first, and a stale copy simply needs the sync.
 sync_targets.txt (one absolute directory per line, # comments allowed) is machine-specific
 and deliberately untracked; without it the check is skipped with exit 0, which is what CI
 sees. A listed directory that does not exist is a loud failure, not a skip — a renamed
-consumer folder must not silently drop out of the sync. Line endings are ignored in the
-comparison: git and editors may flip CRLF/LF, and an EOL-only difference changes nothing
-for Python.
+consumer folder must not silently drop out of the sync. A relative line aborts the whole
+run (SystemExit) before anything is compared or written: resolved against the current
+directory it would silently write to the wrong place. A UTF-8 BOM at the start of the file
+(a PowerShell redirect default) is tolerated. Line endings are ignored in the comparison:
+git and editors may flip CRLF/LF, and an EOL-only difference changes nothing for Python.
 """
 import sys
 from pathlib import Path
@@ -31,10 +33,15 @@ def targets():
     if not TARGETS_FILE.exists():
         return None
     dirs = []
-    for raw in TARGETS_FILE.read_text(encoding='utf-8').splitlines():
+    for raw in TARGETS_FILE.read_text(encoding='utf-8-sig').splitlines():
         line = raw.split('#', 1)[0].strip()
-        if line:
-            dirs.append(Path(line))
+        if not line:
+            continue
+        path = Path(line)
+        if not path.is_absolute():
+            raise SystemExit('sync_targets.txt: %r is not an absolute path — refusing to '
+                             'resolve it against the current directory' % line)
+        dirs.append(path)
     return dirs
 
 
@@ -67,11 +74,11 @@ def main(argv=None):
             else:
                 state = 'differs from the repository' if dst.exists() else 'is missing'
                 findings.append('%s: %s' % (dst, state))
+    for line in findings:
+        print(line)
     if apply:
         print('\nSYNC APPLY: %d file(s) written, %d finding(s)' % (synced, len(findings)))
     else:
-        for line in findings:
-            print(line)
         print('\nSYNC CHECK: %s — %d finding(s)' % ('FAILED' if findings else 'OK', len(findings)))
     return 1 if findings else 0
 

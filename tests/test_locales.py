@@ -86,3 +86,31 @@ def test_timepick_locale_failures_are_loud_at_construction():
     broken = dict(tg_timepick.LOCALES["en"], minutes_title="{hour} and {oops}")
     with pytest.raises(ValueError):
         tg_timepick.TimePick(locale=broken)
+
+
+def test_calendar_locale_shape_failures_are_loud_at_construction():
+    """A structurally broken dict must fail at construction: a silently
+    shifted months list renders the WRONG month name over a valid grid."""
+    en = tg_calendar.LOCALES["en"]
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(locale=dict(en, months=list(en["months"][1:])))   # 12, sentinel lost
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(locale=dict(en, months="JanuaryFebruary"))        # a str, not a sequence
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(locale=dict(en, months_short=list(en["months_short"][1:])))
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(locale=dict(en, weekdays=("Mon", "Tue", "Wed", "Thu", "Fri")))
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(locale=dict(en, today=None))
+
+
+def test_timepick_locale_value_types_are_validated():
+    """None/non-str labels must raise ValueError at construction — not a
+    TypeError later in keyboard_hours(), nor an AttributeError from .format."""
+    en = tg_timepick.LOCALES["en"]
+    with pytest.raises(ValueError):
+        tg_timepick.TimePick(locale=dict(en, hours_title=None))
+    with pytest.raises(ValueError):
+        tg_timepick.TimePick(locale=dict(en, minutes_title=None))
+    with pytest.raises(ValueError):
+        tg_timepick.TimePick(locale=dict(en, minutes_title=42))

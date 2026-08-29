@@ -19,8 +19,10 @@ Self-contained (stdlib only). Drop this file into a bot and wire it:
         if kind == "cancel":  cancel_wizard()
 
 Flow: hour grid (00–23, four rows of six) → minute grid (step 5, two rows of
-six) → "HH:MM". Typed input stays the host's parallel path — the picker only
-adds taps.
+six) → "HH:MM". minute_step is an int in 1..60, validated at construction like
+the locale and the prefix; a step that does not divide 60 gets its last row
+padded with blank cells. Typed input stays the host's parallel path — the
+picker only adds taps.
 
 Labels are localised. The default is English; pass locale="ru" for the bundled
 Russian set, or pass a dict shaped like a LOCALES entry for a custom language —
@@ -74,6 +76,9 @@ def _resolve_locale(locale):
     missing = _LOCALE_KEYS - set(locale)
     if missing:
         raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+    for key in ("hours_title", "minutes_title", "back_hours", "cancel"):
+        if not isinstance(locale[key], str):
+            raise ValueError("locale[%r] must be a string" % key)
     try:
         locale["minutes_title"].format(hour=0)
     except (KeyError, IndexError, ValueError) as e:
@@ -89,14 +94,27 @@ def _pad_center(s: str, width: int = TITLE_WIDTH) -> str:
     return _FIGSP * left + s + _FIGSP * (pad - left)
 
 
+# Telegram caps callback_data at 64 bytes. The longest suffix this module ever
+# appends is ":m:23:59" (8 bytes), so a prefix may spend the rest.
+_PREFIX_BUDGET = 64 - len(":m:23:59")
+
+
 class TimePick:
     """Builds hour/minute keyboards and parses their callbacks. Stateless —
     one instance can serve any number of chats."""
 
     def __init__(self, prefix: str = "tp", *, minute_step: int = 5,
                  title_width: int = TITLE_WIDTH, locale="en"):
+        if not prefix or ":" in prefix:
+            raise ValueError("prefix must be non-empty and contain no ':', got %r" % (prefix,))
+        if len(prefix.encode("utf-8")) > _PREFIX_BUDGET:
+            raise ValueError("prefix must fit %d UTF-8 bytes (Telegram caps callback_data "
+                             "at 64), got %d" % (_PREFIX_BUDGET, len(prefix.encode("utf-8"))))
+        if isinstance(minute_step, bool) or not isinstance(minute_step, int) \
+                or not 1 <= minute_step <= 60:
+            raise ValueError("minute_step must be an int in 1..60, got %r" % (minute_step,))
         self.p = prefix
-        self.step = max(1, int(minute_step))
+        self.step = minute_step
         self.title_width = title_width
         self.labels = _resolve_locale(locale)
 
@@ -120,10 +138,14 @@ class TimePick:
                                       self.title_width),
                   "callback_data": f"{p}:noop"}]]
         mins = list(range(0, 60, self.step))
-        rows.extend([{"text": f"{m:02d}",
-                      "callback_data": f"{p}:m:{hour}:{m}"}
-                     for m in mins[i:i + 6]]
-                    for i in range(0, len(mins), 6))
+        for i in range(0, len(mins), 6):
+            row = [{"text": f"{m:02d}", "callback_data": f"{p}:m:{hour}:{m}"}
+                   for m in mins[i:i + 6]]
+            # A step that does not divide 60 leaves the last row short: pad it
+            # with blank noop cells so every row keeps the 6-column geometry.
+            row.extend({"text": _FIGSP * 2, "callback_data": f"{p}:noop"}
+                       for _ in range(6 - len(row)))
+            rows.append(row)
         rows.append([{"text": self.labels["back_hours"], "callback_data": f"{p}:hours"},
                      {"text": self.labels["cancel"], "callback_data": f"{p}:cancel"}])
         return {"inline_keyboard": rows}

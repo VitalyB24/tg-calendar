@@ -1,5 +1,8 @@
 """Standalone tests for the reusable tg_calendar module (no clubs/db needed)."""
+import calendar
 import datetime as dt
+
+import pytest
 
 import tg_calendar
 
@@ -136,6 +139,93 @@ def test_months_keyboard_grid():
     assert all(" " in t for t in labels)
     assert kb[0][0]["callback_data"] == "x:1"
     assert kb[3][2]["callback_data"] == "x:12"
+
+
+def test_prefix_validation_is_loud_at_construction():
+    """':' inside a prefix makes parse() misread every own callback (a silently
+    dead widget); a long prefix only blows the 64-byte callback_data cap at
+    send time. Both must fail at construction instead."""
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(prefix="a:b")
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(prefix="")
+    with pytest.raises(ValueError):
+        tg_calendar.Calendar(prefix="x" * 49)   # 64 - len(":pick:9999:12:31") = 48 is the cap
+
+
+def test_grid_is_immune_to_global_setfirstweekday():
+    """A host (or any of its libraries) may call calendar.setfirstweekday();
+    the grid must stay Monday-first under the fixed Mon..Sun header."""
+    calendar.setfirstweekday(6)                       # Sunday-first, globally
+    try:
+        kb = _cal().keyboard(2026, 6)["inline_keyboard"]
+        first_week = [b["text"].strip(FIGSP) for b in kb[3]]
+        # June 1, 2026 is a Monday: the first week under Mon..Sun is exactly 1..7
+        assert first_week == ["1", "2", "3", "4", "5", "6", "7"]
+    finally:
+        calendar.setfirstweekday(0)
+
+
+def test_quick_date_overflow_degrades_to_noop():
+    """The never-raise contract covers the quick-date footer too: one day past
+    date.min/date.max must parse to noop, not OverflowError."""
+    at_min = tg_calendar.Calendar(today_fn=lambda: dt.date.min)
+    assert at_min.parse("cal:yest") == ("noop", None)
+    at_max = tg_calendar.Calendar(today_fn=lambda: dt.date.max)
+    assert at_max.parse("cal:tom") == ("noop", None)
+
+
+def test_today_not_highlighted_in_another_month_or_year():
+    """day+month+year must ALL match: day 15 of a neighbouring month/year
+    renders as a plain '15', not as the styled today cell."""
+    c = _cal()                                        # today = 2026-06-15
+    for y, m in ((2026, 7), (2027, 6)):
+        kb = c.keyboard(y, m)["inline_keyboard"]
+        cell = next(b for row in kb for b in row
+                    if b["callback_data"] == f"cal:pick:{y}:{m}:15")
+        assert cell["text"] == "15"
+
+
+def test_blank_grid_cells_are_figure_spaces():
+    """Empty day cells are two U+2007: Telegram trims ASCII spaces, which
+    would collapse the columns."""
+    kb = _cal().keyboard(2026, 6)["inline_keyboard"]
+    blanks = [b for row in kb[3:-2] for b in row if b["callback_data"] == "cal:noop"]
+    assert blanks                                     # June 2026 has empty cells
+    assert all(b["text"] == FIGSP * 2 for b in blanks)
+
+
+def test_width_constants_are_pinned_by_value():
+    """46/15 are tuned-by-eye screen widths; a drifted value must fail by
+    number, not by self-reference."""
+    assert tg_calendar.TITLE_WIDTH == 46
+    assert tg_calendar.MONTH_CELL == 15
+    assert len(tg_calendar.month_title(6, 2026)) == 46
+
+
+def test_style_digits_two_digit_glyphs_are_exact():
+    assert tg_calendar.style_digits(15, "bold") == "\U0001d7ed\U0001d7f1"
+    assert tg_calendar.style_digits(15, "wide") == "\uff11\uff15"
+    assert tg_calendar.style_digits(15, "keycap") == "1\ufe0f\u20e35\ufe0f\u20e3"
+
+
+def test_single_digit_padding_boundary():
+    """Day 9 is the last padded day, day 10 the first unpadded one."""
+    kb = _cal().keyboard(2026, 6)["inline_keyboard"]
+    cells = {b["callback_data"]: b["text"] for row in kb for b in row}
+    assert cells["cal:pick:2026:6:9"] == FIGSP + "9"
+    assert cells["cal:pick:2026:6:10"] == "10"
+
+
+def test_superstring_prefix_is_foreign():
+    """'calx:*' does not belong to prefix 'cal': the boundary is prefix+':'."""
+    assert tg_calendar.Calendar(prefix="cal").parse("calx:pick:2026:6:1") is None
+
+
+def test_custom_title_width_is_honoured():
+    kb = _cal(title_width=30).keyboard(2026, 6)["inline_keyboard"]
+    assert len(kb[0][0]["text"]) == 30
+    assert len(tg_calendar.month_title(6, 2026, width=20)) == 20
 
 
 def test_pad_center_stretches_with_figure_spaces():
