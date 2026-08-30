@@ -10,7 +10,7 @@ description = "Inline-keyboard date and time pickers for Telegram bots: stdlib-o
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Vitali Butkevich" }]
+authors = [{ name = "Vitaly Butkevich" }]
 
 [tool.ruff]
 line-length = 120

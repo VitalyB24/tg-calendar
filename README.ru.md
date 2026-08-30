@@ -198,3 +198,7 @@ pytest
 ## Лицензия
 
 Apache-2.0.
+
+## Автор
+
+Виталий Буткевич — [LinkedIn](https://www.linkedin.com/in/vitalybutkevich)

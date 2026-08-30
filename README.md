@@ -195,3 +195,7 @@ pytest
 ## License
 
 Apache-2.0.
+
+## Author
+
+Vitaly Butkevich — [LinkedIn](https://www.linkedin.com/in/vitalybutkevich)
