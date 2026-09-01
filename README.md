@@ -9,7 +9,7 @@ whose columns stay even and whose width never jumps while you navigate — which
 inline keyboards, is the hard part. Keyboards speak English by default; a Russian label set
 is bundled, and any other language can be supplied as a dict (the `locale=` parameter).
 
-Battle-tested in production bots; the grid discipline below came out of dozens of
+Both modules run in production; the sizing rules below came out of dozens of
 iterations on a real phone screen.
 
 ## Why it exists
@@ -158,7 +158,7 @@ Python 3.10+. No dependencies.
 
 ## Development
 
-Run the gates before every commit — CI runs the same five on every push:
+Run these checks before every commit — CI runs the same five on every push:
 
 ```bash
 ruff check .
@@ -185,7 +185,7 @@ pytest
   `sync_targets.txt` (machine-specific, deliberately untracked); `python sync.py` reports
   any copy that drifted from the repository, `python sync.py --apply` overwrites the
   copies with the repository version. Never edit a module inside a consumer: make the
-  change here, run the gates, then apply the sync.
+  change here, run the checks, then apply the sync.
 - **Mind the literal figure spaces.** `tests/test_tg_calendar.py` contains literal `U+2007`
   characters inside string arguments — they look like ordinary spaces. Editors and tools
   may silently normalise them to `0x20`; the assertions are written so that this breaks the
