@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import calendar as _cal
 import datetime as _dt
-from typing import Callable
+from collections.abc import Callable
 
 # Every label a keyboard renders, per language. "markers" and "digit_styles" are
 # (value, label) catalogues a host bot can show as user settings; the VALUES are
@@ -100,23 +100,22 @@ def _resolve_locale(locale):
     time — not later, somewhere inside a callback handler."""
     if isinstance(locale, str):
         if locale not in LOCALES:
-            raise ValueError("unknown locale %r; bundled: %s"
-                             % (locale, ", ".join(sorted(LOCALES))))
+            raise ValueError(f"unknown locale {locale!r}; bundled: {', '.join(sorted(LOCALES))}")
         return LOCALES[locale]
     missing = _LOCALE_KEYS - set(locale)
     if missing:
-        raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+        raise ValueError(f"locale dict is missing keys: {', '.join(sorted(missing))}")
     for key in ("months", "months_short"):
         seq = locale[key]
         if isinstance(seq, str) or len(seq) != 13 or seq[0] != "" \
                 or not all(isinstance(x, str) for x in seq):
-            raise ValueError("locale[%r] must be 13 strings with a '' sentinel at index 0" % key)
+            raise ValueError(f"locale[{key!r}] must be 13 strings with a '' sentinel at index 0")
     wd = locale["weekdays"]
     if isinstance(wd, str) or len(wd) != 7 or not all(isinstance(x, str) for x in wd):
         raise ValueError("locale['weekdays'] must be 7 strings, Mon..Sun")
     for key in ("yesterday", "today", "tomorrow", "cancel"):
         if not isinstance(locale[key], str):
-            raise ValueError("locale[%r] must be a string" % key)
+            raise ValueError(f"locale[{key!r}] must be a string")
     return locale
 
 
@@ -206,10 +205,10 @@ class Calendar:
                  today_fn: Callable[[], _dt.date] = _dt.date.today,
                  locale="en"):
         if not prefix or ":" in prefix:
-            raise ValueError("prefix must be non-empty and contain no ':', got %r" % (prefix,))
+            raise ValueError(f"prefix must be non-empty and contain no ':', got {prefix!r}")
         if len(prefix.encode("utf-8")) > _PREFIX_BUDGET:
-            raise ValueError("prefix must fit %d UTF-8 bytes (Telegram caps callback_data "
-                             "at 64), got %d" % (_PREFIX_BUDGET, len(prefix.encode("utf-8"))))
+            raise ValueError(f"prefix must fit {_PREFIX_BUDGET} UTF-8 bytes (Telegram caps callback_data "
+                             f"at 64), got {len(prefix.encode('utf-8'))}")
         self.p = prefix
         self.title_width = title_width
         self.footer_today = footer_today

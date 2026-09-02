@@ -8,13 +8,13 @@ name = "tg-calendar"
 version = "2.0.1"
 description = "Inline-keyboard date and time pickers for Telegram bots: stdlib-only drop-in files with even, full-width grids; English/Russian locales"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Vitaly Butkevich" }]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 # F/E9 correctness, B bugbear, PERF performance, S security (bandit),

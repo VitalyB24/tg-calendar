@@ -154,7 +154,7 @@ row of the keyboard.
 
 ## Requirements
 
-Python 3.10+. No dependencies.
+Python 3.12+. No dependencies.
 
 ## Development
 

@@ -39,8 +39,8 @@ def targets():
             continue
         path = Path(line)
         if not path.is_absolute():
-            raise SystemExit('sync_targets.txt: %r is not an absolute path — refusing to '
-                             'resolve it against the current directory' % line)
+            raise SystemExit(f'sync_targets.txt: {line!r} is not an absolute path — refusing to '
+                             'resolve it against the current directory')
         dirs.append(path)
     return dirs
 
@@ -60,7 +60,7 @@ def main(argv=None):
     synced = 0
     for d in dirs:
         if not d.is_dir():
-            findings.append('%s: target directory does not exist' % d)
+            findings.append(f'{d}: target directory does not exist')
             continue
         for name in FILES:
             src, dst = ROOT / name, d / name
@@ -70,16 +70,16 @@ def main(argv=None):
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 dst.write_bytes(src.read_bytes())
                 synced += 1
-                print('synced %s' % dst)
+                print(f'synced {dst}')
             else:
                 state = 'differs from the repository' if dst.exists() else 'is missing'
-                findings.append('%s: %s' % (dst, state))
+                findings.append(f'{dst}: {state}')
     for line in findings:
         print(line)
     if apply:
-        print('\nSYNC APPLY: %d file(s) written, %d finding(s)' % (synced, len(findings)))
+        print(f'\nSYNC APPLY: {synced} file(s) written, {len(findings)} finding(s)')
     else:
-        print('\nSYNC CHECK: %s — %d finding(s)' % ('FAILED' if findings else 'OK', len(findings)))
+        print(f"\nSYNC CHECK: {'FAILED' if findings else 'OK'} — {len(findings)} finding(s)")
     return 1 if findings else 0
 
 

@@ -155,7 +155,7 @@ TP = tg_timepick.TimePick(prefix="tp", locale="ru")
 
 ## Требования
 
-Python 3.10+. Зависимостей нет.
+Python 3.12+. Зависимостей нет.
 
 ## Разработка
 

@@ -39,7 +39,7 @@ Callback-data format: "<prefix>:h:<H>", ":m:<H>:<M>", ":hours", ":cancel",
 """
 from __future__ import annotations
 
-from typing import Optional
+from itertools import batched
 
 _FIGSP = chr(0x2007)   # figure space: survives Telegram's whitespace trimming
 TITLE_WIDTH = 46       # same screen-edge width as tg_calendar's month title
@@ -70,19 +70,18 @@ def _resolve_locale(locale):
     construction time — not later, inside a callback handler."""
     if isinstance(locale, str):
         if locale not in LOCALES:
-            raise ValueError("unknown locale %r; bundled: %s"
-                             % (locale, ", ".join(sorted(LOCALES))))
+            raise ValueError(f"unknown locale {locale!r}; bundled: {', '.join(sorted(LOCALES))}")
         return LOCALES[locale]
     missing = _LOCALE_KEYS - set(locale)
     if missing:
-        raise ValueError("locale dict is missing keys: %s" % ", ".join(sorted(missing)))
+        raise ValueError(f"locale dict is missing keys: {', '.join(sorted(missing))}")
     for key in ("hours_title", "minutes_title", "back_hours", "cancel"):
         if not isinstance(locale[key], str):
-            raise ValueError("locale[%r] must be a string" % key)
+            raise ValueError(f"locale[{key!r}] must be a string")
     try:
         locale["minutes_title"].format(hour=0)
     except (KeyError, IndexError, ValueError) as e:
-        raise ValueError("minutes_title must be a format string taking {hour}: %s" % e) from None
+        raise ValueError(f"minutes_title must be a format string taking {{hour}}: {e}") from None
     return locale
 
 
@@ -106,13 +105,13 @@ class TimePick:
     def __init__(self, prefix: str = "tp", *, minute_step: int = 5,
                  title_width: int = TITLE_WIDTH, locale="en"):
         if not prefix or ":" in prefix:
-            raise ValueError("prefix must be non-empty and contain no ':', got %r" % (prefix,))
+            raise ValueError(f"prefix must be non-empty and contain no ':', got {prefix!r}")
         if len(prefix.encode("utf-8")) > _PREFIX_BUDGET:
-            raise ValueError("prefix must fit %d UTF-8 bytes (Telegram caps callback_data "
-                             "at 64), got %d" % (_PREFIX_BUDGET, len(prefix.encode("utf-8"))))
+            raise ValueError(f"prefix must fit {_PREFIX_BUDGET} UTF-8 bytes (Telegram caps callback_data "
+                             f"at 64), got {len(prefix.encode('utf-8'))}")
         if isinstance(minute_step, bool) or not isinstance(minute_step, int) \
                 or not 1 <= minute_step <= 60:
-            raise ValueError("minute_step must be an int in 1..60, got %r" % (minute_step,))
+            raise ValueError(f"minute_step must be an int in 1..60, got {minute_step!r}")
         self.p = prefix
         self.step = minute_step
         self.title_width = title_width
@@ -120,7 +119,7 @@ class TimePick:
 
     # -------------------- build --------------------
 
-    def keyboard_hours(self, title: Optional[str] = None) -> dict:
+    def keyboard_hours(self, title: str | None = None) -> dict:
         p = self.p
         rows = [[{"text": _pad_center(title or self.labels["hours_title"],
                                       self.title_width),
@@ -137,10 +136,9 @@ class TimePick:
         rows = [[{"text": _pad_center(self.labels["minutes_title"].format(hour=hour),
                                       self.title_width),
                   "callback_data": f"{p}:noop"}]]
-        mins = list(range(0, 60, self.step))
-        for i in range(0, len(mins), 6):
+        for chunk in batched(range(0, 60, self.step), 6):
             row = [{"text": f"{m:02d}", "callback_data": f"{p}:m:{hour}:{m}"}
-                   for m in mins[i:i + 6]]
+                   for m in chunk]
             # A step that does not divide 60 leaves the last row short: pad it
             # with blank noop cells so every row keeps the 6-column geometry.
             row.extend({"text": _FIGSP * 2, "callback_data": f"{p}:noop"}
@@ -152,7 +150,7 @@ class TimePick:
 
     # -------------------- parse --------------------
 
-    def parse(self, data: str) -> Optional[tuple]:
+    def parse(self, data: str) -> tuple | None:
         """(kind, value) for one of OUR callbacks, else None.
         kinds: 'minutes'->hour · 'pick'->"HH:MM" · 'hours'/'cancel'/'noop'->None.
         Malformed numeric payloads degrade to noop (never raise — a swallowed

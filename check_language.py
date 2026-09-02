@@ -130,8 +130,7 @@ def tracked_files():
     listed = subprocess.run(['git', '-c', 'core.quotepath=off', 'ls-files', '-z'],  # noqa: S603, S607
                             cwd=ROOT, capture_output=True, encoding='utf-8')
     if listed.returncode != 0:
-        raise SystemExit('LANGUAGE CHECK: FAILED — git ls-files exited %s, nothing was scanned'
-                         % listed.returncode)
+        raise SystemExit(f'LANGUAGE CHECK: FAILED — git ls-files exited {listed.returncode}, nothing was scanned')
     files = [name for name in listed.stdout.split('\0') if name]
     if not files:
         raise SystemExit('LANGUAGE CHECK: FAILED — git ls-files listed no files, nothing was scanned')

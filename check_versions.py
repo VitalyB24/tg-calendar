@@ -32,12 +32,10 @@ def check(path):
         try:
             installed = version(req.name)
         except PackageNotFoundError:
-            findings.append('%s is not installed (%s asks for %s)'
-                            % (req.name, path.name, req.specifier or 'any version'))
+            findings.append(f"{req.name} is not installed ({path.name} asks for {req.specifier or 'any version'})")
             continue
         if req.specifier and not req.specifier.contains(installed, prereleases=True):
-            findings.append('%s %s is installed, %s asks for %s'
-                            % (req.name, installed, path.name, req.specifier))
+            findings.append(f'{req.name} {installed} is installed, {path.name} asks for {req.specifier}')
     return findings
 
 
@@ -46,7 +44,7 @@ def main():
     for name in FILES:
         path = ROOT / name
         if not path.exists():
-            findings.append('%s is missing' % name)
+            findings.append(f'{name} is missing')
             continue
         findings.extend(check(path))
 
@@ -55,9 +53,9 @@ def main():
         print('VERSION CHECK: OK - everything installed matches the repository')
         return 0
     print()
-    print('VERSION CHECK: %d finding(s)' % len(findings))
+    print(f'VERSION CHECK: {len(findings)} finding(s)')
     for line in findings:
-        print('  %s' % line)
+        print(f'  {line}')
     print()
     print('  Bring this machine up to what the repository asks for:')
     print('    python -m pip install --upgrade -r requirements-dev.txt')

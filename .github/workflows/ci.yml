@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
       # Majors, not pinned commits: these two are first-party actions and patches to them are
       # wanted. Older majors run on Node 20, which the runners no longer provide.
