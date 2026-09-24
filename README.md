@@ -105,7 +105,7 @@ if res:
 
 ## The time picker: tg_timepick.py
 
-The sibling module — independent, copy it only if you need it:
+The sibling module — independent, wire it only if you need it:
 
 ```python
 import tg_timepick
@@ -177,15 +177,17 @@ pytest
   `check_versions.py` proves the machine matches the ranges; Dependabot proposes bumps and
   CI answers on the pull request.
 - **Line endings are LF in git** (`.gitattributes`), whatever the OS prefers locally.
-- **Consumers sync from the repository.** The repository is the single source of truth for
-  the modules and their tests (both are synced, so a consumer's suite always tests the
-  copy it actually runs). The synced tests carry no `sys.path` bootstrap of their own: the
-  consumer needs a `conftest.py` that puts the module directory on `sys.path`, kept in
-  its own `tests/`. Consumers are listed, one directory per line, in
-  `sync_targets.txt` (machine-specific, deliberately untracked); `python sync.py` reports
-  any copy that drifted from the repository, `python sync.py --apply` overwrites the
-  copies with the repository version. Never edit a module inside a consumer: make the
-  change here, run the checks, then apply the sync.
+- **Consumers import from the clone through a shim.** Keep a clone of this repository next
+  to the bot folders (any parent directory; the folder name stays `tg-calendar`) and copy
+  `consumer_shim.py` into a bot as `tg_calendar.py` and, when the time picker is used,
+  `tg_timepick.py`. On import the shim walks up to the clone, loads the module of its own
+  name from there and aliases itself to it, so the bot and its tests always run the
+  repository's file and nothing drifts. The repository stays the single source of truth:
+  make the change here, run the checks, restart the consumers. `sync.py` remains for a
+  consumer that cannot keep the clone nearby: it copies the modules and their tests to
+  the directories listed in `sync_targets.txt` (machine-specific, deliberately untracked)
+  and reports drift; such a consumer needs its own `tests/conftest.py` that puts the
+  module directory on `sys.path`. Never edit a module inside a consumer.
 - **Mind the literal figure spaces.** `tests/test_tg_calendar.py` contains literal `U+2007`
   characters inside string arguments — they look like ordinary spaces. Editors and tools
   may silently normalise them to `0x20`; the assertions are written so that this breaks the
