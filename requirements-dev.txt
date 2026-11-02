@@ -5,6 +5,6 @@
 # ruff has the tightest bound here. It is still 0.x, and a new minor brings new rules with
 # it — that is a linter able to fail a build nobody touched. Let Dependabot propose the
 # bump so CI answers first.
-pytest>=9.1.1,<10
-ruff>=0.16.9,<0.17
+pytest>=9.2.0,<10
+ruff>=0.17.3,<0.18
 packaging>=26.3,<27        # check_versions.py compares versions with it
